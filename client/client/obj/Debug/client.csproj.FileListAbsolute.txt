@@ -1,0 +1,9 @@
+C:\Users\Ivan\Desktop\client\client\bin\Debug\client.exe.config
+C:\Users\Ivan\Desktop\client\client\bin\Debug\client.exe
+C:\Users\Ivan\Desktop\client\client\bin\Debug\client.pdb
+C:\Users\Ivan\Desktop\client\client\obj\Debug\client.csproj.AssemblyReference.cache
+C:\Users\Ivan\Desktop\client\client\obj\Debug\client.Properties.Resources.resources
+C:\Users\Ivan\Desktop\client\client\obj\Debug\client.csproj.GenerateResource.cache
+C:\Users\Ivan\Desktop\client\client\obj\Debug\client.csproj.CoreCompileInputs.cache
+C:\Users\Ivan\Desktop\client\client\obj\Debug\client.exe
+C:\Users\Ivan\Desktop\client\client\obj\Debug\client.pdb
