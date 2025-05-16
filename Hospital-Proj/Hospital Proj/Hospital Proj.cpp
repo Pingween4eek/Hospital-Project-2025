@@ -1,4 +1,4 @@
-?#include <iostream>
+#include <iostream>
 #include <string>
 #include <winsock2.h>
 #include <ws2tcpip.h>
@@ -26,9 +26,9 @@ int main() {
 	bool action_flag = false;
 	struct sockaddr_in server_addr, client_addr;
 	int client_addr_len = sizeof(client_addr);
-	std::string buffer;  // Используем std::string для буфера
+	std::string buffer;  // Г€Г±ГЇГ®Г«ГјГ§ГіГҐГ¬ std::string Г¤Г«Гї ГЎГіГґГҐГ°Г 
 	const char* message = "Enter number to choose action: 1-Patient 2-advance time 3-exit programm";
-	char recv_buffer[1024] = { 0 };  // Буфер для получения данных через recv()
+	char recv_buffer[1024] = { 0 };  // ГЃГіГґГҐГ° Г¤Г«Гї ГЇГ®Г«ГіГ·ГҐГ­ГЁГї Г¤Г Г­Г­Г»Гµ Г·ГҐГ°ГҐГ§ recv()
 
 	int key = 1;
 	bool w;
@@ -36,25 +36,25 @@ int main() {
 	vector<Patient> temp;
 	patient_db::read_patients(&temp);
 
-	// Инициализация Winsock
+	// Г€Г­ГЁГ¶ГЁГ Г«ГЁГ§Г Г¶ГЁГї Winsock
 	if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
 		std::cerr << "WSAStartup failed: " << WSAGetLastError() << std::endl;
 		return 1;
 	}
 
-	// Создание сокета
+	// Г‘Г®Г§Г¤Г Г­ГЁГҐ Г±Г®ГЄГҐГІГ 
 	if ((server_socket = socket(AF_INET, SOCK_STREAM, 0)) == INVALID_SOCKET) {
 		std::cerr << "Socket creation failed: " << WSAGetLastError() << std::endl;
 		WSACleanup();
 		return 1;
 	}
 
-	// Настройка адреса сервера
+	// ГЌГ Г±ГІГ°Г®Г©ГЄГ  Г Г¤Г°ГҐГ±Г  Г±ГҐГ°ГўГҐГ°Г 
 	server_addr.sin_family = AF_INET;
 	server_addr.sin_addr.s_addr = INADDR_ANY;
 	server_addr.sin_port = htons(PORT);
 
-	// Привязка сокета к IP-адресу и порту
+	// ГЏГ°ГЁГўГїГ§ГЄГ  Г±Г®ГЄГҐГІГ  ГЄ IP-Г Г¤Г°ГҐГ±Гі ГЁ ГЇГ®Г°ГІГі
 	if (bind(server_socket, (struct sockaddr*)&server_addr, sizeof(server_addr)) == SOCKET_ERROR) {
 		std::cerr << "Bind failed: " << WSAGetLastError() << std::endl;
 		closesocket(server_socket);
@@ -62,7 +62,7 @@ int main() {
 		return 1;
 	}
 
-	// Прослушивание входящих подключений
+	// ГЏГ°Г®Г±Г«ГіГёГЁГўГ Г­ГЁГҐ ГўГµГ®Г¤ГїГ№ГЁГµ ГЇГ®Г¤ГЄГ«ГѕГ·ГҐГ­ГЁГ©
 	if (listen(server_socket, 3) == SOCKET_ERROR) {
 		std::cerr << "Listen failed: " << WSAGetLastError() << std::endl;
 		closesocket(server_socket);
@@ -73,7 +73,7 @@ int main() {
 	while (true) {
 		std::cout << "Waiting for connections..." << std::endl;
 
-		// Принятие подключения клиента
+		// ГЏГ°ГЁГ­ГїГІГЁГҐ ГЇГ®Г¤ГЄГ«ГѕГ·ГҐГ­ГЁГї ГЄГ«ГЁГҐГ­ГІГ 
 		if ((client_socket = accept(server_socket, (struct sockaddr*)&client_addr, &client_addr_len)) == INVALID_SOCKET) {
 			std::cerr << "Accept failed: " << WSAGetLastError() << std::endl;
 			closesocket(server_socket);
@@ -188,7 +188,7 @@ int main() {
 								//break;
 							}
 							client_socket = accept(server_socket, (struct sockaddr*)&client_addr, &client_addr_len);
-							//Проверка подключения
+							//ГЏГ°Г®ГўГҐГ°ГЄГ  ГЇГ®Г¤ГЄГ«ГѕГ·ГҐГ­ГЁГї
 							if (client_socket == INVALID_SOCKET) {
 								std::cerr << "Accept failed: " << WSAGetLastError() << std::endl;
 								w = false;
@@ -213,7 +213,7 @@ int main() {
 								break;
 							}
 							client_socket = accept(server_socket, (struct sockaddr*)&client_addr, &client_addr_len);
-							//Проверка подключения
+							//ГЏГ°Г®ГўГҐГ°ГЄГ  ГЇГ®Г¤ГЄГ«ГѕГ·ГҐГ­ГЁГї
 							if (client_socket == INVALID_SOCKET) {
 								std::cerr << "Accept failed: " << WSAGetLastError() << std::endl;
 								closesocket(server_socket);
@@ -235,7 +235,7 @@ int main() {
 								break;
 							}
 							client_socket = accept(server_socket, (struct sockaddr*)&client_addr, &client_addr_len);
-							//Проверка подключения
+							//ГЏГ°Г®ГўГҐГ°ГЄГ  ГЇГ®Г¤ГЄГ«ГѕГ·ГҐГ­ГЁГї
 							if (client_socket == INVALID_SOCKET) {
 								std::cerr << "Accept failed: " << WSAGetLastError() << std::endl;
 								closesocket(server_socket);
@@ -266,7 +266,7 @@ int main() {
 								break;
 							}
 							client_socket = accept(server_socket, (struct sockaddr*)&client_addr, &client_addr_len);
-							//Проверка подключения
+							//ГЏГ°Г®ГўГҐГ°ГЄГ  ГЇГ®Г¤ГЄГ«ГѕГ·ГҐГ­ГЁГї
 							if (client_socket == INVALID_SOCKET) {
 								std::cerr << "Accept failed: " << WSAGetLastError() << std::endl;
 								closesocket(server_socket);
@@ -293,7 +293,7 @@ int main() {
 							}
 
 							client_socket = accept(server_socket, (struct sockaddr*)&client_addr, &client_addr_len);
-							//Проверка подключения
+							//ГЏГ°Г®ГўГҐГ°ГЄГ  ГЇГ®Г¤ГЄГ«ГѕГ·ГҐГ­ГЁГї
 							if (client_socket == INVALID_SOCKET) {
 								std::cerr << "Accept failed: " << WSAGetLastError() << std::endl;
 								closesocket(server_socket);
@@ -376,7 +376,7 @@ int main() {
 		}
 	}
 
-	// Закрытие сокетов	
+	// Г‡Г ГЄГ°Г»ГІГЁГҐ Г±Г®ГЄГҐГІГ®Гў	
 	closesocket(server_socket);
 	WSACleanup();
 
