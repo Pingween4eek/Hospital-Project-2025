@@ -1,4 +1,5 @@
 #include <iostream>
+#include "sqlite3.h"
 #include <string>
 #include <fstream>
 #include "database.h"
@@ -22,11 +23,53 @@ std::string to_lower(const std::string& str) {
 }
 
 
-namespace patient_db{
-    std::string create_patients(SOCKET *client_socket, std::vector<Patient>* arr) {
+namespace patient_db {
+    // Инициализация базы данных
+    sqlite3* init_db() {
+        sqlite3* db;
+        int rc = sqlite3_open("ivangaog_hospita.db", &db);
+        if (rc) {
+            std::cerr << "Can't open database: " << sqlite3_errmsg(db) << std::endl;
+            return nullptr;
+        }
+
+        const char* sql = "CREATE TABLE IF NOT EXISTS patients ("
+            "snils INTEGER,"
+            "surname TEXT NOT NULL,"
+            "name TEXT NOT NULL,"
+            "gender TEXT NOT NULL,"
+            "age INTEGER,"
+            "diagnosis TEXT NOT NULL,"
+            "status TEXT NOT NULL,"
+            "doctor TEXT NOT NULL,"
+            "department TEXT NOT NULL,"
+            "days_in_hospital INTEGER);";
+
+        char* errMsg = 0;
+        rc = sqlite3_exec(db, sql, 0, 0, &errMsg);
+        if (rc != SQLITE_OK) {
+            std::cerr << "SQL error: " << errMsg << std::endl;
+            sqlite3_free(errMsg);
+        }
+
+        return db;
+    }
+
+    // Создание пациентов
+    std::string create_patients(SOCKET* client_socket, std::vector<Patient>* arr) {
         SocketWrapper client(*client_socket);
-        //sendMessage(client_socket, "Enter number of patients = ");
-        
+        sqlite3* db = init_db();
+        if (!db) return "ERROR_DB_INIT";
+
+        const char* delete_sql = "DELETE FROM patients;";
+        char* errMsg = nullptr;
+        if (sqlite3_exec(db, delete_sql, nullptr, nullptr, &errMsg) != SQLITE_OK) {
+            std::cerr << "Failed to delete patients: " << errMsg << std::endl;
+            sqlite3_free(errMsg);
+            sqlite3_close(db);
+            return "ERROR_DB_DELETE";
+        }
+
         int n = -1;
 
         while (n < 0) {
@@ -43,18 +86,15 @@ namespace patient_db{
                 n = stoi(nt);
             }
             else {
-                //sendMessage(client_socket, "Incorrect number! Enter number of patients = ");
                 n = -1;
             }
         }
-        
+
         if (n <= 0) {
-            //sendMessage(client_socket, "CLOSE");
             closesocket(*client_socket);
             std::cout << "Client connection closed. Waiting for reconnection..." << std::endl;
             return "ok";
         }
-            
 
         arr->clear();
         Patient patient;
@@ -67,48 +107,84 @@ namespace patient_db{
             return "ERROR001RECEIVE";
         }
 
-        write_patients(*arr);
+
+        const char* sql = "INSERT INTO patients (snils, surname, name, gender, age, diagnosis, "
+            "status, doctor, department, days_in_hospital) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);";
+
+        sqlite3_stmt* stmt;
+        if (sqlite3_prepare_v2(db, sql, -1, &stmt, 0) != SQLITE_OK) {
+            std::cerr << "Failed to prepare statement: " << sqlite3_errmsg(db) << std::endl;
+            sqlite3_close(db);
+            return "ERROR_DB_PREPARE";
+        }
+
+        for (auto& patient : *arr) {
+            sqlite3_bind_int(stmt, 1, patient.getSnils());
+            sqlite3_bind_text(stmt, 2, patient.getSurname().c_str(), -1, SQLITE_TRANSIENT);
+            sqlite3_bind_text(stmt, 3, patient.getName().c_str(), -1, SQLITE_TRANSIENT);
+            sqlite3_bind_text(stmt, 4, patient.getGender().c_str(), -1, SQLITE_TRANSIENT);
+            sqlite3_bind_int(stmt, 5, patient.getAge());
+            sqlite3_bind_text(stmt, 6, patient.getDia().c_str(), -1, SQLITE_TRANSIENT);
+            sqlite3_bind_text(stmt, 7, patient.getStatus().c_str(), -1, SQLITE_TRANSIENT);
+            sqlite3_bind_text(stmt, 8, patient.getDoctor().c_str(), -1, SQLITE_TRANSIENT);
+            sqlite3_bind_text(stmt, 9, patient.getDepartment().c_str(), -1, SQLITE_TRANSIENT);
+            sqlite3_bind_int(stmt, 10, patient.getDays());
+
+            if (sqlite3_step(stmt) != SQLITE_DONE) {
+                std::cerr << "Execution failed: " << sqlite3_errmsg(db) << std::endl;
+            }
+
+            sqlite3_reset(stmt);
+        }
+
+        sqlite3_finalize(stmt);
+        sqlite3_close(db);
 
         //sendMessage(client_socket, "CLOSE");
         closesocket(*client_socket);
         std::cout << "Client connection closed. Waiting for reconnection..." << std::endl;
         return "ok";
     }
-    void write_patients(std::vector<Patient> arr) {
-        if (arr.empty()) return;
 
-        std::ofstream out;
-        out.open("patients.txt");
-        if (!out) return;
-
-        int n = arr.size();
-        out << n << std::endl;
-
-        for (int i = 0; i < n; i++) {
-            out << arr[i] << std::endl;
-        }
-
-        out.close();
-    }
-
+    // Чтение пациентов из базы данных
     void read_patients(std::vector<Patient>* arr) {
-        std::ifstream in("patients.txt");
-        if (!in) return;
+        sqlite3* db = init_db();
+        if (!db) return;
 
-        int n;
-        in >> n;
-        if (n <= 0) return;
+        const char* sql = "SELECT snils, surname, name, gender, age, diagnosis, "
+            "status, doctor, department, days_in_hospital FROM patients;";
 
-        *arr = {};
-        Patient patient;
-        for (int i = 0; i < n; i++) {
-            in >> patient;
-            arr->push_back({ patient });
+        sqlite3_stmt* stmt;
+        if (sqlite3_prepare_v2(db, sql, -1, &stmt, 0) != SQLITE_OK) {
+            std::cerr << "Failed to prepare statement: " << sqlite3_errmsg(db) << std::endl;
+            sqlite3_close(db);
+            return;
         }
 
-        in.close();
+        arr->clear();
+
+        while (sqlite3_step(stmt) == SQLITE_ROW) {
+            Patient patient;
+            patient.setSnils(sqlite3_column_int(stmt, 0));
+            patient.setSurname(reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1)));
+            patient.setName(reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2)));
+            patient.setGender(reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3)));
+            patient.setAge(sqlite3_column_int(stmt, 4));
+            patient.setDia(reinterpret_cast<const char*>(sqlite3_column_text(stmt, 5)));
+            patient.setStatus(reinterpret_cast<const char*>(sqlite3_column_text(stmt, 6)));
+            patient.setDoctor(reinterpret_cast<const char*>(sqlite3_column_text(stmt, 7)));
+            patient.setDepartment(reinterpret_cast<const char*>(sqlite3_column_text(stmt, 8)));
+            patient.setDays(sqlite3_column_int(stmt, 9));
+
+            arr->push_back(patient);
+        }
+
+        sqlite3_finalize(stmt);
+        sqlite3_close(db);
     }
 
+    // Добавление пациента
     std::string add_patient(SOCKET* client_socket, std::vector<Patient>* arr) {
         SocketWrapper client(*client_socket);
         if (arr->empty()) {
@@ -138,11 +214,47 @@ namespace patient_db{
         }
 
         arr->push_back(patient);
-        //sendMessage(client_socket, "Patient added successfully. Print 'ok' to continue");
-        //std::string pusto = receiveMessage(*client_socket);
-        //if (pusto == "ERROR001RECEIVE") {
-            //return "ERROR001RECEIVE";
-        //}
+
+
+        sqlite3* db = init_db();
+        if (!db) return "ERROR_DB_INIT";
+
+        const char* sql = "INSERT INTO patients (snils, surname, name, gender, age, diagnosis, "
+            "status, doctor, department, days_in_hospital) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);";
+
+        sqlite3_stmt* stmt;
+        if (sqlite3_prepare_v2(db, sql, -1, &stmt, 0) != SQLITE_OK) {
+            std::cerr << "Failed to prepare statement: " << sqlite3_errmsg(db) << std::endl;
+            sqlite3_close(db);
+            return "ERROR_DB_PREPARE";
+        }
+
+        for (auto& patient : *arr) {
+            sqlite3_bind_int(stmt, 1, patient.getSnils());
+            sqlite3_bind_text(stmt, 2, patient.getSurname().c_str(), -1, SQLITE_TRANSIENT);
+            sqlite3_bind_text(stmt, 3, patient.getName().c_str(), -1, SQLITE_TRANSIENT);
+            sqlite3_bind_text(stmt, 4, patient.getGender().c_str(), -1, SQLITE_TRANSIENT);
+            sqlite3_bind_int(stmt, 5, patient.getAge());
+            sqlite3_bind_text(stmt, 6, patient.getDia().c_str(), -1, SQLITE_TRANSIENT);
+            sqlite3_bind_text(stmt, 7, patient.getStatus().c_str(), -1, SQLITE_TRANSIENT);
+            sqlite3_bind_text(stmt, 8, patient.getDoctor().c_str(), -1, SQLITE_TRANSIENT);
+            sqlite3_bind_text(stmt, 9, patient.getDepartment().c_str(), -1, SQLITE_TRANSIENT);
+            sqlite3_bind_int(stmt, 10, patient.getDays());
+
+            if (sqlite3_step(stmt) != SQLITE_DONE) {
+                std::cerr << "Execution failed: " << sqlite3_errmsg(db) << std::endl;
+            }
+
+            sqlite3_reset(stmt);
+        }
+
+        if (sqlite3_step(stmt) != SQLITE_DONE) {
+            std::cerr << "Execution failed: " << sqlite3_errmsg(db) << std::endl;
+        }
+
+        sqlite3_finalize(stmt);
+        sqlite3_close(db);
 
         //sendMessage(client_socket, "CLOSE");
         closesocket(*client_socket);
@@ -150,74 +262,89 @@ namespace patient_db{
 
         return "ok";
     }
-    
 
+    // Удаление пациента
     std::string delete_patient(SOCKET* client_socket, std::vector<Patient>* arr) {
+        sqlite3* db = init_db();
+        if (!db) return "ERROR_DB_INIT";
+
         SocketWrapper client(*client_socket);
 
         if (arr->empty()) {
-            //sendMessage(client_socket, "List of patients doesnt exist");
             std::string pusto = receiveMessage(*client_socket);
             if (pusto == "ERROR001RECEIVE") {
+                sqlite3_close(db);
                 return "ERROR001RECEIVE";
             }
-
-            //sendMessage(client_socket, "CLOSE");
             closesocket(*client_socket);
+            sqlite3_close(db);
             std::cout << "Client connection closed. Waiting for reconnection..." << std::endl;
-
             return "ok";
         }
 
-        //sendMessage(client_socket, "Enter the surname of patient you want to delete: ");
         std::string patient = receiveMessage(*client_socket);
         if (patient == "ERROR001RECEIVE") {
+            sqlite3_close(db);
             return "ERROR001RECEIVE";
         }
         if (patient == "BACK") {
+            sqlite3_close(db);
             return "BACK";
         }
 
-        int id;
-        int n = arr->size();
+        // Удаление из базы данных
+        const char* sql = "DELETE FROM patients WHERE LOWER(surname) = LOWER(?);";
+        sqlite3_stmt* stmt;
+
+        if (sqlite3_prepare_v2(db, sql, -1, &stmt, 0) != SQLITE_OK) {
+            std::cerr << "Failed to prepare statement: " << sqlite3_errmsg(db) << std::endl;
+            sqlite3_close(db);
+            return "ERROR_DB_PREPARE";
+        }
+
+        sqlite3_bind_text(stmt, 1, patient.c_str(), -1, SQLITE_TRANSIENT);
+
+        if (sqlite3_step(stmt) != SQLITE_DONE) {
+            std::cerr << "Execution failed: " << sqlite3_errmsg(db) << std::endl;
+        }
+
+        int changes = sqlite3_changes(db);
+        sqlite3_finalize(stmt);
+
+        // Удаление из вектора
+        bool deleted_from_vector = false;
         patient = to_lower(patient);
-        bool flag = false;
 
-        for (int i = 0; i < n; i++) {
-            if (patient == to_lower((*arr)[i].getSurname())) {
-                id = i;
-                flag = true;
+        for (auto it = arr->begin(); it != arr->end(); ) {
+            if (patient == to_lower(it->getSurname())) {
+                it = arr->erase(it);
+                deleted_from_vector = true;
+            }
+            else {
+                ++it;
             }
         }
-        if (flag) {
-            //sendMessage(client_socket, "Patient was delete, enter 'ok' to continue");
-            arr->erase(arr->begin() + id);
+
+        if (changes > 0 || deleted_from_vector) {
             sendMessage(client_socket, "YES");
-            std::string pusto = receiveMessage(*client_socket);
-            if (pusto == "ERROR001RECEIVE") {
-                return "ERROR001RECEIVE";
-            }
         }
-
         else {
-            //sendMessage(client_socket, "This patient doesn't exist, enter 'ok' to continue");
             sendMessage(client_socket, "NO");
-            std::string pusto = receiveMessage(*client_socket);
-            if (pusto == "ERROR001RECEIVE") {
-                return "ERROR001RECEIVE";
-            }
-
-            //sendMessage(client_socket, "CLOSE");
-            closesocket(*client_socket);
-            std::cout << "Client connection closed. Waiting for reconnection..." << std::endl;
-            return "ok";
         }
-        //sendMessage(client_socket, "CLOSE");
+
+        std::string pusto = receiveMessage(*client_socket);
+        if (pusto == "ERROR001RECEIVE") {
+            sqlite3_close(db);
+            return "ERROR001RECEIVE";
+        }
+
+        sqlite3_close(db);
         closesocket(*client_socket);
         std::cout << "Client connection closed. Waiting for reconnection..." << std::endl;
         return "ok";
     }
 
+    // Поиск пациента
     std::string search_patient(SOCKET* client_socket, std::vector<Patient> arr) {
         SocketWrapper client(*client_socket);
 
@@ -234,7 +361,7 @@ namespace patient_db{
 
             return "ok";
         }
-    
+
         //sendMessage(client_socket, "What patient you looking for? (Enter surname): ");
         std::string patient = receiveMessage(*client_socket);
         if (patient == "ERROR001RECEIVE") {
@@ -270,18 +397,18 @@ namespace patient_db{
             sendMessage(client_socket, "NO PATIENT");
             //sendMessage(client_socket, "CLOSE");
             closesocket(*client_socket);
-            std::cout << "Client connection closed. Waiting for reconnection..." << std::endl; 
+            std::cout << "Client connection closed. Waiting for reconnection..." << std::endl;
 
             return "ok";
         }
         //sendMessage(client_socket, "CLOSE");
         closesocket(*client_socket);
-        std::cout << "Client connection closed. Waiting for reconnection..." << std::endl; 
+        std::cout << "Client connection closed. Waiting for reconnection..." << std::endl;
         return "ok";
     }
 
     std::string print_patients(SOCKET* client_socket, std::vector<Patient> arr) {
-        SocketWrapper client(*client_socket);    
+        SocketWrapper client(*client_socket);
 
         int n = arr.size();
         sendMessage(client_socket, std::to_string(n));
@@ -289,7 +416,7 @@ namespace patient_db{
         for (int i = 0; i < n; i++) {
             //sendMessage(client_socket, "PATIENT");
             std::cout << arr[i];
-            client << arr[i];           
+            client << arr[i];
         }
 
         std::string pusto = receiveMessage(*client_socket);
@@ -298,7 +425,7 @@ namespace patient_db{
         }
         //sendMessage(client_socket, "CLOSE");
         closesocket(*client_socket);
-        std::cout << "Client connection closed. Waiting for reconnection..." << std::endl; 
+        std::cout << "Client connection closed. Waiting for reconnection..." << std::endl;
         return "ok";
     }
 }

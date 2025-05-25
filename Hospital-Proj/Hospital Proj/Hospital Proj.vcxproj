@@ -127,7 +127,25 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="database.cpp" />
+    <ClCompile Include="Func.cpp" />
     <ClCompile Include="Hospital Proj.cpp" />
+    <ClCompile Include="patient.cpp" />
+    <ClCompile Include="receive_message.cpp" />
+    <ClCompile Include="send_message.cpp" />
+    <ClCompile Include="socket_wrapper.cpp" />
+    <ClCompile Include="sqlite3.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="database.h" />
+    <ClInclude Include="Patient.h" />
+    <ClInclude Include="receive_message.h" />
+    <ClInclude Include="send_message.h" />
+    <ClInclude Include="socket_wrapper.h" />
+    <ClInclude Include="sqlite3.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="patients.sql" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

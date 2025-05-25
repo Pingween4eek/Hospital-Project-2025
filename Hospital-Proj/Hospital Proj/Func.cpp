@@ -50,7 +50,7 @@ SocketWrapper& operator>>(SocketWrapper& socket, Patient& pat) {
     std::vector<std::string> words = split(input);
 
     if (words.size() == 10) {
-        pat._id = std::stoi(words[0]);
+        pat._snils = std::stoi(words[0]);
         pat._name = words[1];
         pat._surname = words[2];
         pat._gender = words[3];
@@ -70,7 +70,7 @@ SocketWrapper& operator>>(SocketWrapper& socket, Patient& pat) {
 }
 
 istream& operator >>(istream& in, Patient& pat) {
-    in >> pat._id;
+    in >> pat._snils;
     in >> pat._name;
     in >> pat._surname;
     in >> pat._gender;
@@ -87,7 +87,7 @@ istream& operator >>(istream& in, Patient& pat) {
 SocketWrapper& operator<<(SocketWrapper& socket, Patient& pat) {
     std::vector<std::string> words;
 
-    words.push_back(std::to_string(pat._id));
+    words.push_back(std::to_string(pat._snils));
     words.push_back(pat._name);
     words.push_back(pat._surname);
     words.push_back(pat._gender);
@@ -106,7 +106,7 @@ SocketWrapper& operator<<(SocketWrapper& socket, Patient& pat) {
 
 ostream& operator <<(ostream& out, Patient& pat) {
 	cout << " Id: ";
-	out << pat._id << endl;
+	out << pat._snils << endl;
 	cout << " Name: ";
 	out << pat._name << endl;
 	cout << " Surname: ";

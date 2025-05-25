@@ -6,7 +6,7 @@
 #include "socket_wrapper.h"
 
 class Patient {
-	int _id;
+	int _snils;
 	std::string _name;
 	std::string _surname;
 	std::string _gender;
@@ -22,7 +22,7 @@ public:
 	 friend std::ostream& operator <<(std::ostream& out, Patient& pat); 
 	 friend std::istream& operator >>(std::istream& in, Patient& pat);
 
-	 int getId();
+	 int getSnils();
 	 int getAge();
 	 int getDays();
 	 std::string getDepartment();
@@ -37,7 +37,7 @@ public:
 	 void setDays(int _days);
 	 void setDepartment(std::string _department);
 	 void setDoctor(std::string _doctor);
-	 void setId(int _id);
+	 void setSnils(int _snils);
 	 void setName(std::string name); 
 	 void setSurname(std::string surname); 
 	 void setGender(std::string gender); 

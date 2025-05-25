@@ -5,7 +5,7 @@
 #include "send_message.h"
 #include "receive_message.h"
 
-int Patient::getId() { return _id; }
+int Patient::getSnils() { return _snils; }
 std::string Patient::getName() { return _name; }
 std::string Patient::getSurname() { return _surname; }
 std::string Patient::getGender() { return _gender; }
@@ -16,7 +16,7 @@ std::string Patient::getDoctor() { return _doctor; }
 std::string Patient::getDepartment() { return _department; }
 int Patient::getDays() { return _days; }
 
-void Patient::setId(int id) { _id = id; }
+void Patient::setSnils(int snils) { _snils = snils; }
 void Patient::setName(std::string name) { _name = name; }
 void Patient::setSurname(std::string surname) { _surname = surname; }
 void Patient::setGender(std::string gender) { _gender = gender; }
