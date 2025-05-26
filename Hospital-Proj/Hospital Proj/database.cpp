@@ -187,79 +187,74 @@ namespace patient_db {
     // Добавление пациента
     std::string add_patient(SOCKET* client_socket, std::vector<Patient>* arr) {
         SocketWrapper client(*client_socket);
-        if (arr->empty()) {
-            //sendMessage(client_socket, "First create list of patient with command 'create'");
-            std::string pusto = receiveMessage(*client_socket);
-            if (pusto == "ERROR001RECEIVE") {
-                return "ERROR001RECEIVE";
-            }
 
-            //sendMessage(client_socket, "CLOSE");
-            closesocket(*client_socket);
-            std::cout << "Client connection closed. Waiting for reconnection..." << std::endl;
-
-            return "ok";
-        }
-
+        // Получаем данные пациента
         Patient patient;
         client >> patient;
 
+        if (patient.getDays() == 75) return "ERROR001RECEIVE";
+        if (patient.getDays() == 74) return "BACK";
 
-        if (patient.getDays() == 75) {
-            return "ERROR001RECEIVE";
-        }
-
-        if (patient.getDays() == 74) {
-            return "BACK";
-        }
-
+        // Добавляем пациента в вектор
         arr->push_back(patient);
 
-
+        // Работа с базой данных
         sqlite3* db = init_db();
         if (!db) return "ERROR_DB_INIT";
 
+        // Начинаем транзакцию
+        if (sqlite3_exec(db, "BEGIN TRANSACTION;", nullptr, nullptr, nullptr) != SQLITE_OK) {
+            std::cerr << "Begin transaction failed: " << sqlite3_errmsg(db) << std::endl;
+            sqlite3_close(db);
+            return "ERROR_DB_TRANSACTION";
+        }
+
+        // Вставляем только нового пациента
         const char* sql = "INSERT INTO patients (snils, surname, name, gender, age, diagnosis, "
             "status, doctor, department, days_in_hospital) "
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);";
 
         sqlite3_stmt* stmt;
-        if (sqlite3_prepare_v2(db, sql, -1, &stmt, 0) != SQLITE_OK) {
-            std::cerr << "Failed to prepare statement: " << sqlite3_errmsg(db) << std::endl;
+        if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+            std::cerr << "Prepare failed: " << sqlite3_errmsg(db) << std::endl;
             sqlite3_close(db);
             return "ERROR_DB_PREPARE";
         }
 
-        for (auto& patient : *arr) {
-            sqlite3_bind_int(stmt, 1, patient.getSnils());
-            sqlite3_bind_text(stmt, 2, patient.getSurname().c_str(), -1, SQLITE_TRANSIENT);
-            sqlite3_bind_text(stmt, 3, patient.getName().c_str(), -1, SQLITE_TRANSIENT);
-            sqlite3_bind_text(stmt, 4, patient.getGender().c_str(), -1, SQLITE_TRANSIENT);
-            sqlite3_bind_int(stmt, 5, patient.getAge());
-            sqlite3_bind_text(stmt, 6, patient.getDia().c_str(), -1, SQLITE_TRANSIENT);
-            sqlite3_bind_text(stmt, 7, patient.getStatus().c_str(), -1, SQLITE_TRANSIENT);
-            sqlite3_bind_text(stmt, 8, patient.getDoctor().c_str(), -1, SQLITE_TRANSIENT);
-            sqlite3_bind_text(stmt, 9, patient.getDepartment().c_str(), -1, SQLITE_TRANSIENT);
-            sqlite3_bind_int(stmt, 10, patient.getDays());
+        // Привязываем параметры только для нового пациента
+        sqlite3_bind_int(stmt, 1, patient.getSnils());
+        sqlite3_bind_text(stmt, 2, patient.getSurname().c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(stmt, 3, patient.getName().c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(stmt, 4, patient.getGender().c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_int(stmt, 5, patient.getAge());
+        sqlite3_bind_text(stmt, 6, patient.getDia().c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(stmt, 7, patient.getStatus().c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(stmt, 8, patient.getDoctor().c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(stmt, 9, patient.getDepartment().c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_int(stmt, 10, patient.getDays());
 
-            if (sqlite3_step(stmt) != SQLITE_DONE) {
-                std::cerr << "Execution failed: " << sqlite3_errmsg(db) << std::endl;
-            }
-
-            sqlite3_reset(stmt);
-        }
-
+        // Выполняем вставку
         if (sqlite3_step(stmt) != SQLITE_DONE) {
-            std::cerr << "Execution failed: " << sqlite3_errmsg(db) << std::endl;
+            std::cerr << "Insert failed: " << sqlite3_errmsg(db) << std::endl;
+            sqlite3_finalize(stmt);
+            sqlite3_exec(db, "ROLLBACK;", nullptr, nullptr, nullptr);
+            sqlite3_close(db);
+            return "ERROR_DB_INSERT";
         }
 
+        // Финализируем и закрываем соединение
         sqlite3_finalize(stmt);
+
+        if (sqlite3_exec(db, "COMMIT;", nullptr, nullptr, nullptr) != SQLITE_OK) {
+            std::cerr << "Commit failed: " << sqlite3_errmsg(db) << std::endl;
+            sqlite3_close(db);
+            return "ERROR_DB_COMMIT";
+        }
+
         sqlite3_close(db);
 
-        //sendMessage(client_socket, "CLOSE");
         closesocket(*client_socket);
         std::cout << "Client connection closed. Waiting for reconnection..." << std::endl;
-
         return "ok";
     }
 
