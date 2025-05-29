@@ -148,7 +148,56 @@ namespace patient_db {
     }
 
     // Чтение пациентов из базы данных
+    void update_patient_days(std::vector<Patient>* arr, int days_passed) {
+        if (days_passed <= 0) return;
+
+        for (auto& patient : *arr) {
+            if (!(patient.getStatus() == "discharged" || patient.getStatus() == "died")) {
+                int new_days = patient.getDays() - days_passed;
+                patient.setDays(new_days > 0 ? new_days : 0);
+
+                if (patient.getDays() <= 0) {
+                    int a = rand() % 10;
+                    patient.setStatus((a < 9) ? "discharged" : "died");
+                }
+            }
+        }
+
+        // Обновляем данные в базе
+        sqlite3* db = init_db();
+        if (!db) return;
+
+        const char* sql = "UPDATE patients SET days_in_hospital = ?, status = ? WHERE snils = ?;";
+        sqlite3_stmt* stmt;
+
+        if (sqlite3_prepare_v2(db, sql, -1, &stmt, 0) == SQLITE_OK) {
+            for (auto& patient : *arr) {
+                sqlite3_bind_int(stmt, 1, patient.getDays());
+                sqlite3_bind_text(stmt, 2, patient.getStatus().c_str(), -1, SQLITE_TRANSIENT);
+                sqlite3_bind_int(stmt, 3, patient.getSnils());
+                sqlite3_step(stmt);
+                sqlite3_reset(stmt);
+            }
+            sqlite3_finalize(stmt);
+        }
+
+        sqlite3_close(db);
+    }
+
     void read_patients(std::vector<Patient>* arr) {
+        static time_t last_check = 0;
+        time_t now = time(0);
+
+        // Для первого запуска или если last_check не установлен
+        if (last_check == 0) {
+            last_check = now;
+        }
+
+        // Вычисляем сколько дней (или секунд для теста) прошло
+        //int time_passed = static_cast<int>((now - last_check) / (60 * 60 * 24)); // Для дней
+        // Для теста с 10 секундами:
+         int time_passed = static_cast<int>((now - last_check) / 10);
+
         sqlite3* db = init_db();
         if (!db) return;
 
@@ -182,6 +231,12 @@ namespace patient_db {
 
         sqlite3_finalize(stmt);
         sqlite3_close(db);
+
+        // Обновляем дни только если прошло время
+        if (time_passed > 0) {
+            update_patient_days(arr, time_passed);
+            last_check = now; // Обновляем время последней проверки
+        }
     }
 
     // Добавление пациента
@@ -422,5 +477,84 @@ namespace patient_db {
         closesocket(*client_socket);
         std::cout << "Client connection closed. Waiting for reconnection..." << std::endl;
         return "ok";
+    }
+
+    void update_last_check_date() {
+        sqlite3* db = init_db();
+        if (!db) return;
+
+        const char* sql = "CREATE TABLE IF NOT EXISTS last_check ("
+            "last_update INTEGER);";
+        sqlite3_exec(db, sql, 0, 0, 0);
+
+        // Удаляем старую запись (если есть)
+        sqlite3_exec(db, "DELETE FROM last_check;", 0, 0, 0);
+
+        // Вставляем текущее время
+        time_t now = time(0);
+        sqlite3_stmt* stmt;
+        const char* insert_sql = "INSERT INTO last_check (last_update) VALUES (?);";
+        sqlite3_prepare_v2(db, insert_sql, -1, &stmt, 0);
+        sqlite3_bind_int64(stmt, 1, now);
+        sqlite3_step(stmt);
+        sqlite3_finalize(stmt);
+        sqlite3_close(db);
+    }
+
+    time_t get_last_check_date() {
+        sqlite3* db = init_db();
+        if (!db) return 0;
+
+        const char* sql = "SELECT last_update FROM last_check LIMIT 1;";
+        sqlite3_stmt* stmt;
+        time_t last_check = 0;
+
+        if (sqlite3_prepare_v2(db, sql, -1, &stmt, 0) == SQLITE_OK) {
+            if (sqlite3_step(stmt) == SQLITE_ROW) {
+                last_check = sqlite3_column_int64(stmt, 0);
+            }
+            sqlite3_finalize(stmt);
+        }
+
+        sqlite3_close(db);
+        return last_check;
+    }
+
+    int calculate_days_passed(time_t last_check) {
+        time_t now = time(0);
+        if (last_check == 0) return 0;
+        return static_cast<int>((now - last_check) / 10);
+    }
+
+    void auto_update_patient_days(std::vector<Patient>* arr) {
+        time_t last_check = get_last_check_date();
+        int days_passed = calculate_days_passed(last_check);
+
+        if (days_passed > 0) {
+            for (auto& patient : *arr) {
+                patient.advance_day(nullptr, days_passed);
+            }
+
+            // Обновляем данные в базе
+            sqlite3* db = init_db();
+            if (!db) return;
+
+            const char* sql = "UPDATE patients SET days_in_hospital = ?, status = ? WHERE snils = ?;";
+            sqlite3_stmt* stmt;
+
+            if (sqlite3_prepare_v2(db, sql, -1, &stmt, 0) == SQLITE_OK) {
+                for (auto& patient : *arr) {
+                    sqlite3_bind_int(stmt, 1, patient.getDays());
+                    sqlite3_bind_text(stmt, 2, patient.getStatus().c_str(), -1, SQLITE_TRANSIENT);
+                    sqlite3_bind_int(stmt, 3, patient.getSnils());
+                    sqlite3_step(stmt);
+                    sqlite3_reset(stmt);
+                }
+                sqlite3_finalize(stmt);
+            }
+
+            update_last_check_date();
+            sqlite3_close(db);
+        }
     }
 }

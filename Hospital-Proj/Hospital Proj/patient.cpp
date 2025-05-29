@@ -28,24 +28,12 @@ void Patient::setDepartment(std::string department) { _department = department; 
 void Patient::setDays(int days) { _days = days; }
 
 void Patient::advance_day(SOCKET* client_socket, int count) {
-    if (!(_status == "discharged")) {
-
-        for (int i = 0; i < count; i++) {
-            _days--;
-            if (_days == 0)
-                break;
-        }
-
+    if (!(_status == "discharged" || _status == "died")) {
+        _days -= count;
         if (_days <= 0) {
-            _status = "discharged";
+            _days = 0;
             int a = rand() % 10;
-            if (a < 9)
-                _status = "discharged";
-            else {
-                _status = "died";
-                //std :: string doc = getDoctor()
-            }
+            _status = (a < 9) ? "discharged" : "died";
         }
-
     }
 }

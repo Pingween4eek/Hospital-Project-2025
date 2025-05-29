@@ -17,4 +17,8 @@ namespace patient_db {
 	std::string delete_patient(SOCKET* client_socket, std::vector<Patient>* arr);
 	void advance_time(std::vector<Patient>* arr, int days);
 	std::string print_patients(SOCKET* client_socket, std::vector<Patient> arr);
+	void update_last_check_date();
+	time_t get_last_check_date();
+	int calculate_days_passed(time_t last_check);
+	void auto_update_patient_days(std::vector<Patient>* arr);
 }

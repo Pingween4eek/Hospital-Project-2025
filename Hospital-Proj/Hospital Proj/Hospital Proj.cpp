@@ -279,6 +279,8 @@ int main() {
 
 							break;
 						case 5:
+							patient_db::read_patients(&temp);
+				/*			patient_db::auto_update_patient_days(&temp);*/
 							if (patient_db::print_patients(&client_socket, temp) == "ERROR001RECEIVE") {
 								w = false;
 								moment = false;
